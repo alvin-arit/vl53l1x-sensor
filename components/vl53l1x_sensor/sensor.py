@@ -33,7 +33,24 @@ CONF_PEAK_SIGNAL_RATE_SENSOR = "peak_signal_rate_sensor"
 CONF_RANGE_STATUS_SENSOR = "range_status_sensor"
 CONF_VALID_TIMING_BUDGET_DM_SHORT = [15, 20, 33, 50, 100, 200, 500]
 CONF_VALID_TIMING_BUDGET_DM_MEDIUM_AND_LONG = [20, 33, 50, 100, 200, 500]
+CONF_INTERRUPT = "interrupt"
+CONF_INTERRUPT_LOW_MM = "low_mm"
+CONF_INTERRUPT_HIGH_MM = "high_mm"
+CONF_INTERRUPT_MODE = "mode"
+CONF_INTERRUPT_ACTIVE_LOW = "active_low"
 
+INTERRUPT_SCHEMA = cv.Schema({
+    cv.Optional(CONF_INTERRUPT_LOW_MM, default=0): cv.int_range(min=0, max=4000),
+    cv.Optional(CONF_INTERRUPT_HIGH_MM, default=0): cv.int_range(min=0, max=4000),
+    cv.Optional(CONF_INTERRUPT_MODE, default="IN_WINDOW"): cv.enum({
+        "LEVEL_LOW": 0,
+        "LEVEL_HIGH": 1,
+        "OUT_WINDOW": 2,
+        "IN_WINDOW": 3,
+        "NEW_SAMPLE_READY": 0x20,
+    }),
+    cv.Optional(CONF_INTERRUPT_ACTIVE_LOW, default=True): cv.boolean,
+})
 
 def check_keys(obj):
     if obj[CONF_ADDRESS] != 0x29 and CONF_ENABLE_PIN not in obj:
@@ -139,6 +156,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ROI_CENTER): Any(cv.int_range(0, 255), CONFIG_ROI_CENTER),
             cv.Optional(CONF_ROI_SIZE, default={"x":16, "y": 16}): CONFIG_ROI_SIZE,
+            cv.Optional(CONF_INTERRUPT): INTERRUPT_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -161,8 +179,16 @@ async def to_code(config):
         enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
         cg.add(var.set_enable_pin(enable))
     if CONF_IRQ_PIN in config:
-        irq = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
-        cg.add(var.set_irq_pin(irq))
+    irq = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+    cg.add(var.set_irq_pin(irq))
+
+    if interrupt := config.get(CONF_INTERRUPT):
+        cg.add(var.set_interrupt_active_low(interrupt[CONF_INTERRUPT_ACTIVE_LOW]))
+        cg.add(var.set_interrupt_mode(interrupt[CONF_INTERRUPT_MODE]))
+        cg.add(var.set_interrupt_thresholds(
+            interrupt[CONF_INTERRUPT_LOW_MM],
+            interrupt[CONF_INTERRUPT_HIGH_MM]
+        ))
     if ambient_rate_sensor_config := config.get(CONF_AMBIENT_RATE_SENSOR):
         sens = await sensor.new_sensor(ambient_rate_sensor_config)
         cg.add(var.set_ambient_rate_sensor(sens))

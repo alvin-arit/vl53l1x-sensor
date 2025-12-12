@@ -79,6 +79,17 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
     void set_peak_signal_rate_sensor(sensor::Sensor *sensor) { this->peak_signal_rate_sensor = sensor; }
     void set_range_status_sensor(sensor::Sensor *sensor) { this->range_status_sensor = sensor; }
 
+    void set_irq_pin(GPIOPin *irq) { this->irq_pin_ = irq; }
+
+    // Interrupt / wake configuration
+    void set_interrupt_active_low(bool v) { this->interrupt_active_low_ = v; this->interrupt_configured_ = true; }
+    void set_interrupt_mode(uint8_t mode) { this->interrupt_mode_ = mode; this->interrupt_configured_ = true; }
+    void set_interrupt_thresholds(uint16_t low_mm, uint16_t high_mm) {
+      this->interrupt_low_mm_ = low_mm;
+      this->interrupt_high_mm_ = high_mm;
+      this->interrupt_configured_ = true;
+    }
+
     private:
     void setI2CAddress(uint8_t addr);
     void startRanging();
@@ -103,6 +114,10 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
     void set_measurement_timing_budget();
     void set_signal_threshold();
     void set_roi();
+    void configure_interrupt_();
+    void set_interrupt_polarity_(bool active_low);
+    void set_interrupt_mode_(uint8_t mode);
+    void set_distance_thresholds_(uint16_t low_mm, uint16_t high_mm);
 
     sensor::Sensor *range_status_sensor{nullptr};
     sensor::Sensor *ambient_rate_sensor{nullptr};
@@ -122,6 +137,11 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
     uint8_t roi_size_x_{};
     uint8_t roi_size_y_{};
     uint8_t rangeStatus{};
+    bool interrupt_configured_{false};
+    bool interrupt_active_low_{true};
+    uint8_t interrupt_mode_{3};          // 3 = IN_WINDOW (matches comment in .cpp)
+    uint16_t interrupt_low_mm_{0};
+    uint16_t interrupt_high_mm_{0};
 };
 
 } //namespace vl53l1x

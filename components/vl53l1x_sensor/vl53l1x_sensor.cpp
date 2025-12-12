@@ -189,6 +189,10 @@ void VL53L1XSensor::setup() {
     this->set_i2c_address(final_address);
 
     ESP_LOGI(TAG,"'%s' - Setup completed", this->name_.c_str());
+
+    // Configure interrupt thresholds/mode/polarity before ranging
+    configure_interrupt_();
+
     startRanging();
 }
 
@@ -273,6 +277,45 @@ uint8_t VL53L1XSensor::getInterruptPolarity() {
 
 void VL53L1XSensor::clearInterrupt() {
     reg16(0x0086) = 0x01;
+}
+
+void VL53L1XSensor::set_interrupt_polarity_(bool active_low) {
+  // 0x0030: bit4 = 0 active high, 1 active low. Bits 3:0 must be 0x1 (per comment).
+  uint8_t v = reg16(0x0030).get();
+  v = (v & 0x0F) | 0x01; // force low nibble to 0x1
+  if (active_low) v |= 0x10;
+  else v &= ~0x10;
+  reg16(0x0030) = v;
+}
+
+void VL53L1XSensor::set_interrupt_mode_(uint8_t mode) {
+  // 0x0046:
+  // 0 -> level low detection
+  // 1 -> level high detection
+  // 2 -> out of window
+  // 3 -> in window
+  // 0x20 -> new sample ready
+  reg16(0x0046) = mode;
+}
+
+void VL53L1XSensor::set_distance_thresholds_(uint16_t low_mm, uint16_t high_mm) {
+  // 0x0072..0x0075 distance threshold high/low
+  writeWord(0x0072, high_mm);
+  writeWord(0x0074, low_mm);
+}
+
+void VL53L1XSensor::configure_interrupt_() {
+  if (!interrupt_configured_) return;
+
+  set_interrupt_polarity_(interrupt_active_low_);
+  set_interrupt_mode_(interrupt_mode_);
+
+  // only apply thresholds if user set something meaningful
+  if (interrupt_low_mm_ != 0 || interrupt_high_mm_ != 0) {
+    set_distance_thresholds_(interrupt_low_mm_, interrupt_high_mm_);
+  }
+
+  clearInterrupt();
 }
 
 uint16_t VL53L1XSensor::sensorId() {
