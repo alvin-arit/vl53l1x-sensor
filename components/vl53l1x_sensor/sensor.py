@@ -179,9 +179,8 @@ async def to_code(config):
         enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
         cg.add(var.set_enable_pin(enable))
     if CONF_IRQ_PIN in config:
-    irq = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
-    cg.add(var.set_irq_pin(irq))
-
+        irq = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+        cg.add(var.set_irq_pin(irq))
     if interrupt := config.get(CONF_INTERRUPT):
         cg.add(var.set_interrupt_active_low(interrupt[CONF_INTERRUPT_ACTIVE_LOW]))
         cg.add(var.set_interrupt_mode(interrupt[CONF_INTERRUPT_MODE]))
