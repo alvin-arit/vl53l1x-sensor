@@ -183,6 +183,7 @@ void VL53L1XSensor::setup() {
     set_measurement_timing_budget();
     set_signal_threshold();
     set_roi();
+    clearInterruptAndStartMeasurement();
 
     // Set the sensor to the desired final address
     reg16(0x0001) = final_address & 0x7F;
@@ -202,6 +203,7 @@ void VL53L1XSensor::loop() {
 
 void VL53L1XSensor::update() {
   if (checkForDataReady()) {
+
     if (this->ambient_rate_sensor != nullptr) {
       int16_t ambient_rate_mcps = ambientRate();
       this->ambient_rate_sensor->publish_state(ambient_rate_mcps);
@@ -214,20 +216,26 @@ void VL53L1XSensor::update() {
       int16_t peak_signal_rate_mcps = peakSignalRate();
       this->peak_signal_rate_sensor->publish_state(peak_signal_rate_mcps);
     }
+
     int8_t rangeStatus = getRangeStatus();
     if (this->range_status_sensor != nullptr) {
-        this->range_status_sensor->publish_state(rangeStatus);
+      this->range_status_sensor->publish_state(rangeStatus);
     }
+
     if (rangeStatus != 0x0) {
-      // something went wrong!
-      ESP_LOGD(TAG, "'%s' - Couldn't get distance: 0x%02X", this->name_.c_str(), rangeStatus);
+      ESP_LOGD(TAG, "'%s' - Couldn't get distance: 0x%02X",
+               this->name_.c_str(), rangeStatus);
       this->publish_state(NAN);
     } else {
       int16_t distance_mm = distance();
-      float distance_m = (float)distance_mm / 1000.0;
-      ESP_LOGD(TAG, "'%s' - Got distance %i mm", this->name_.c_str(), distance_mm);
+      float distance_m = (float)distance_mm / 1000.0f;
+      ESP_LOGD(TAG, "'%s' - Got distance %i mm",
+               this->name_.c_str(), distance_mm);
       this->publish_state(distance_m);
     }
+
+    clearInterruptAndStartMeasurement();
+
   } else {
     ESP_LOGD(TAG, "'%s' - data not ready", this->name_.c_str());
   }
