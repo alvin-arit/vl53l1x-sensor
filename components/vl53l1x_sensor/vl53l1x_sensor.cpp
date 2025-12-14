@@ -183,7 +183,6 @@ void VL53L1XSensor::setup() {
     set_measurement_timing_budget();
     set_signal_threshold();
     set_roi();
-    clearInterruptAndStartMeasurement();
 
     // Set the sensor to the desired final address
     reg16(0x0001) = final_address & 0x7F;
@@ -193,6 +192,9 @@ void VL53L1XSensor::setup() {
 
     // Configure interrupt thresholds/mode/polarity before ranging
     configure_interrupt_();
+
+    // IMPORTANT: clear after configuring so INT is not latched low
+    clearInterruptAndStartMeasurement();
 
     startRanging();
 }
@@ -287,10 +289,18 @@ void VL53L1XSensor::clearInterrupt() {
     reg16(0x0086) = 0x01;
 }
 
+void VL53L1XSensor::clearInterruptAndStartMeasurement() {
+  // Clear the latched interrupt
+  clearInterrupt();
+
+  // Re-arm the next measurement. Your driver uses 0x0087 = 0x40 to start ranging.
+  // Calling this repeatedly is safe in continuous mode.
+  startRanging();
+}
+
 void VL53L1XSensor::set_interrupt_polarity_(bool active_low) {
-  // 0x0030: bit4 = 0 active high, 1 active low. Bits 3:0 must be 0x1 (per comment).
   uint8_t v = reg16(0x0030).get();
-  v = (v & 0x0F) | 0x01; // force low nibble to 0x1
+  v = (v & 0xF0) | 0x01; // keep high nibble, force low nibble to 0x1
   if (active_low) v |= 0x10;
   else v &= ~0x10;
   reg16(0x0030) = v;
@@ -479,14 +489,14 @@ void VL53L1XSensor::set_measurement_timing_budget()
     // assumes PresetMode is LOWPOWER_AUTONOMOUS
 
     if (timing_budget_us_ <= TimingGuard) {
-        ESP_LOGE(TAG, "'%s' - invalid timing budget: %iµs (distance mode: %i)", this->name_.c_str(), timing_budget_us_);
-        return;
+      ESP_LOGE(TAG, "'%s' - invalid timing budget: %iµs (distance mode: %i)", this->name_.c_str(), timing_budget_us_);
+      return;
     }
 
-    uint32_t range_config_timeout_us = timing_budget_us_ -= TimingGuard;
+    uint32_t range_config_timeout_us = timing_budget_us_ - TimingGuard;
     if (range_config_timeout_us > 1100000) {
-        ESP_LOGE(TAG, "'%s' - invalid timing budget: %iµs (distance mode: %i)", this->name_.c_str(), timing_budget_us_);
-        return; // FDA_MAX_TIMING_BUDGET_US * 2
+      ESP_LOGE(TAG, "'%s' - invalid timing budget: %iµs (distance mode: %i)", this->name_.c_str(), timing_budget_us_);
+      return;
     }
 
     range_config_timeout_us /= 2;
