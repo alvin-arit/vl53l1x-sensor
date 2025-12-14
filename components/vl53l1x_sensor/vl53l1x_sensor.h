@@ -97,6 +97,7 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
     bool checkForDataReady();
     uint8_t getInterruptPolarity();
     void clearInterrupt();
+    void clearInterruptAndStartMeasurement();
     uint16_t sensorId();
     uint16_t readWord(uint16_t reg_idx);
     uint32_t calc_macro_period(uint8_t vcsel_period);
